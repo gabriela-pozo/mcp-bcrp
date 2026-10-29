@@ -5,7 +5,7 @@
 import pytest
 from fastmcp.exceptions import ToolError
 
-from server import _fecha_api, _periodo, _resumir
+from server import _alinear, _comparar, _fecha_api, _misma_frecuencia, _periodo, _resumir, _validar_codigos
 
 
 @pytest.mark.parametrize("fecha, frecuencia, api", [
@@ -53,3 +53,51 @@ def test_resumir_redondea_y_no_divide_entre_cero():
     r = _resumir([{"periodo": "2025-01", "valor": 0.0}, {"periodo": "2025-02", "valor": 0.1 + 0.2}])
     assert r["variacion_pct"] is None
     assert r["cambio"] == 0.3 and r["ultimo"]["valor"] == 0.3
+
+
+def _s(codigo, pares, frecuencia="Mensual"):
+    """Una salida de _datos_serie inventada."""
+    return {"codigo": codigo, "nombre": f"Serie {codigo}", "frecuencia": frecuencia, "fuente": f"https://x/{codigo}",
+            "datos": [{"periodo": p, "valor": v} for p, v in pares]}
+
+
+def test_alinear_deja_solo_periodos_comunes_en_orden():
+    a = [{"periodo": p, "valor": v} for p, v in [("2025-01", 1), ("2025-02", 2), ("2025-03", 3)]]
+    b = [{"periodo": p, "valor": v} for p, v in [("2025-02", 20), ("2025-03", 30), ("2025-04", 40)]]
+    assert _alinear([a, b]) == (["2025-02", "2025-03"], [[2, 3], [20, 30]])
+
+
+def test_comparar():
+    r = _comparar([_s("A", [("2025-01", 200.0), ("2025-02", 210.0), ("2025-03", 250.0)]),
+                   _s("B", [("2025-01", 4.0), ("2025-02", 3.0), ("2025-03", 3.0), ("2025-04", 9.0)])])
+    assert r["periodos"] == ["2025-01", "2025-02", "2025-03"]
+    a, b = r["series"]
+    assert a == {"codigo": "A", "nombre": "Serie A", "valores": [200.0, 210.0, 250.0],
+                 "indice_base_100": [100.0, 105.0, 125.0], "cambio": 50.0, "variacion_pct": 25.0,
+                 "fuente": "https://x/A"}
+    assert (b["indice_base_100"], b["cambio"], b["variacion_pct"]) == ([100.0, 75.0, 75.0], -1.0, -25.0)
+
+
+def test_comparar_redondea_y_base_no_positiva_da_none():
+    r = _comparar([_s("A", [("2025-01", 3.0), ("2025-02", 1.0)]), _s("B", [("2025-01", -0.5), ("2025-02", 0.1 + 0.2)])])
+    a, b = r["series"]
+    assert a["indice_base_100"] == [100.0, 33.3333]
+    assert b["indice_base_100"] is None and b["valores"] == [-0.5, 0.3]
+
+
+def test_comparar_pocos_periodos_comunes():
+    with pytest.raises(ToolError, match="2025-02"):
+        _comparar([_s("A", [("2025-01", 1.0), ("2025-02", 2.0)]), _s("B", [("2025-02", 1.0), ("2025-03", 2.0)])])
+
+
+@pytest.mark.parametrize("codigos, nombrado", [(["A"], "A"), (["A", "B", "C", "D", "E", "F"], "F"),
+                                               (["A", "B", "A"], "'A'")])
+def test_validar_codigos(codigos, nombrado):
+    with pytest.raises(ToolError, match=nombrado):
+        _validar_codigos(codigos)
+
+
+def test_misma_frecuencia():
+    _misma_frecuencia({"A": "Mensual", "B": "Mensual"})
+    with pytest.raises(ToolError, match=r"B \(Diaria\)"):
+        _misma_frecuencia({"A": "Mensual", "B": "Diaria"})

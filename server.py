@@ -197,6 +197,62 @@ def resumen(codigo: str, desde: str, hasta: str) -> dict:
     return {"codigo": s["codigo"], "nombre": s["nombre"], "frecuencia": s["frecuencia"],
             **_resumir(s["datos"]), "fuente": s["fuente"]}
 
+
+def _alinear(listas):
+    """Periodos comunes a todas las listas [{periodo, valor}], en orden, y los valores de cada una en ellos."""
+    por_periodo = [{d["periodo"]: d["valor"] for d in datos} for datos in listas]
+    periodos = [p for p in por_periodo[0] if all(p in otra for otra in por_periodo[1:])]
+    return periodos, [[serie[p] for p in periodos] for serie in por_periodo]
+
+
+def _validar_codigos(codigos):
+    if not 2 <= len(codigos) <= 5:
+        raise ToolError(f"comparar necesita de 2 a 5 códigos y recibió {len(codigos)}: {codigos}.")
+    repetidos = sorted({c for c in codigos if codigos.count(c) > 1})
+    if repetidos:
+        raise ToolError(f"Códigos repetidos: {repetidos}. Pongan cada serie una sola vez.")
+
+
+def _misma_frecuencia(frecuencias):
+    """frecuencias: {codigo: frecuencia}."""
+    if len(set(frecuencias.values())) > 1:
+        detalle = ", ".join(f"{c} ({f})" for c, f in frecuencias.items())
+        raise ToolError(f"Las series tienen frecuencias distintas: {detalle}. Comparen series de la misma frecuencia.")
+
+
+def _comparar(series):
+    """Las cuentas de comparar, sobre salidas de _datos_serie de la misma frecuencia."""
+    periodos, valores = _alinear([s["datos"] for s in series])
+    if len(periodos) < 2:
+        codigos = [s["codigo"] for s in series]
+        raise ToolError(f"Las series {codigos} tienen {len(periodos)} periodo(s) en común: {periodos}. Se necesitan 2.")
+    resultado = []
+    for s, v in zip(series, valores):
+        r = _resumir([{"periodo": p, "valor": x} for p, x in zip(periodos, v)])
+        resultado.append({"codigo": s["codigo"], "nombre": s["nombre"], "valores": [round(x, 4) for x in v],
+                          "indice_base_100": [round(x / v[0] * 100, 4) for x in v] if v[0] > 0 else None,
+                          "cambio": r["cambio"], "variacion_pct": r["variacion_pct"], "fuente": s["fuente"]})
+    return {"frecuencia": series[0]["frecuencia"], "periodos": periodos, "series": resultado}
+
+
+@mcp.tool(annotations=SOLO_LECTURA)
+def comparar(codigos: list[str], desde: str, hasta: str) -> dict:
+    """Compara la evolución de 2 a 5 series del BCRP de la misma frecuencia en los periodos que tienen en común.
+
+    Para cada serie devuelve sus valores, un índice con base 100 en el primer periodo común, el cambio y la
+    variación % entre el primer y el último periodo común, y su fuente.
+    Cuándo usarla: para ver qué serie creció más aunque estén en unidades distintas (millones de US$, soles por
+    dólar, índices), mirando indice_base_100 o variacion_pct.
+    Cuándo no: para una sola serie, usen resumen. No sirve para medir una relación estadística (correlación)
+    entre series. Si el primer valor común es 0 o negativo (por ejemplo, una inflación), indice_base_100 es None:
+    comparen con cambio, en puntos porcentuales.
+    Ejemplo: comparar(["PN00027MM", "PN38784BM"], "2025-01", "2026-08") compara las reservas internacionales netas
+    con el precio del cobre. Las fechas van como en serie. Citen los códigos, los periodos y las fuentes.
+    """
+    _validar_codigos(codigos)
+    _misma_frecuencia({c: _ficha(c)["frecuencia"] for c in codigos})
+    return _comparar([_datos_serie(c, desde, hasta) for c in codigos])
+
 # TODO 3 · Una herramienta suya, bien descrita. Ideas:
 #   - comparar_paises con la API del Banco Mundial, que tampoco pide clave:
 #     https://api.worldbank.org/v2/country/PER;CHL;COL/indicator/NY.GDP.MKTP.KD.ZG?format=json&date=2015:2025
