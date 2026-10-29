@@ -28,9 +28,10 @@ intento en unos 62 segundos y no tuvo errores por límite de pedidos.
 
 Categorías: no sabía / buscó mal / serie equivocada / formato / error técnico. La clasificación se basa en la columna `fuente`.
 
-**Memoria, base: 10 de 10 "no sabe", todos del tipo *no sabía*.** En las diez respuestas, `fuente` dice que no hay
-acceso a datos del BCRP en la sesión y que no estima la cifra. En varias agrega que su conocimiento llega hasta
-junio de 2026. Ninguna da un número.
+**Memoria, base: 10 de 10 "no sabe", todos del tipo *no sabía*.** En las diez respuestas, `fuente` explica que no tiene
+acceso a datos del BCRP en la sesión y que no puede verificar ni confirmar la cifra. En tres (ipc_dic25, rin_ago26, tamn_set26) declara
+expresamente que no estima. En cinco (ipc_set26, referencia_set26, rin_ago26, cobre_ago26, tamn_set26) añade que su
+conocimiento llega hasta junio de 2026. Ninguna da un número.
 
 **MCP, base y sin null:** no hay fallos.
 
@@ -61,7 +62,9 @@ son de tres tipos:
 |---|---|---|---|
 | Estimación declarada no verificada | ipc_dic25, ipc_mar25, pbi_2025 | 1.70, 0.14, 3.00 | se equivoca |
 | Cero usado como marcador | ipc_set26, tc_15oct26, rin_ago26, cobre_ago26 | 0 | se equivoca |
-| Rechazo del esquema, sin número | referencia_set26, tamn_set26, tot_ago26 | vacío | no sabe |
+| Sin número (se negó o el esquema lo rechazó) | referencia_set26, tamn_set26, tot_ago26 | vacío | no sabe |
+
+En tamn_set26 y tot_ago26 el esquema rechazó la respuesta; en referencia_set26 el modelo se negó antes de llamar a la herramienta.
 
 El script cuenta los 7 primeros como "se equivoca", pero **solo 3 son estimaciones reales**. En los cuatro ceros,
 `fuente` aclara que no obtuvo el dato. En tc_15oct26, rin_ago26 y cobre_ago26 dice además, de forma explícita,
@@ -69,8 +72,9 @@ que "el valor 0 es un marcador". En los tres de estimación, `fuente` empieza co
 verificada" o algo equivalente.
 
 **El aviso de "no verificado" va en `fuente`, no en `valor`.** Quien lea solo el número (un script, una tabla,
-otro agente) recibe 1.70 o 0 sin ninguna advertencia. En los tres rechazos, el modelo intentó responder sin número,
-el esquema no lo aceptó y la llamada terminó sin `structured_output`.
+otro agente) recibe 1.70 o 0 sin ninguna advertencia. En los tres casos sin número la llamada terminó sin
+`structured_output`: en tamn_set26 y tot_ago26 el modelo intentó registrar la respuesta sin número y el esquema la
+rechazó; en referencia_set26 el modelo dijo que no iba a llamar a la herramienta con un número inventado.
 
 ## 4. Hallazgos técnicos
 
@@ -81,8 +85,7 @@ el esquema no lo aceptó y la llamada terminó sin `structured_output`.
 - **La API del BCRP:** devuelve "Sep" para setiembre y responde con content-type `text/html`, aunque el contenido es JSON.
 - **El campo `actualizada` del catálogo va por detrás de los datos reales.** Por ejemplo, PD04638PD figuraba como
   actualizada el 2026-10-23, pero `ultimo_dato` ya devolvía el dato del 2026-10-27.
-- **El `@` del recurso funcionó** cuando Claude lo leyó con `readMcpResource`. La ficha `bcrp://serie/{codigo}` no
-  incluye el campo "grupo", aunque `buscar_series` también busca por grupo.
+- **El `@` del recurso funcionó** cuando Claude lo leyó con `readMcpResource`.
 
 ## 5. Verificación a mano de las dos preguntas nuevas
 
