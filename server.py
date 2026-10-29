@@ -241,11 +241,12 @@ def comparar(codigos: list[str], desde: str, hasta: str) -> dict:
 
     Para cada serie devuelve sus valores, un índice con base 100 en el primer periodo común, el cambio y la
     variación % entre el primer y el último periodo común, y su fuente.
-    Cuándo usarla: para ver qué serie creció más aunque estén en unidades distintas (millones de US$, soles por
-    dólar, índices), mirando indice_base_100 o variacion_pct.
-    Cuándo no: para una sola serie, usen resumen. No sirve para medir una relación estadística (correlación)
-    entre series. Si el primer valor común es 0 o negativo (por ejemplo, una inflación), indice_base_100 es None:
-    comparen con cambio, en puntos porcentuales.
+    Cuándo usarla: con series en niveles (índices, tipo de cambio, reservas, precios), para ver cuál creció más
+    aunque estén en unidades distintas (millones de US$, soles por dólar), mirando indice_base_100 o variacion_pct.
+    Cuándo no: con series que ya son porcentajes o tasas (inflación, tasa de referencia, crecimiento del PBI):
+    para esas usen resumen en cada una y comparen sus "cambio", en puntos porcentuales. Para una sola serie, usen
+    resumen. No sirve para medir una relación estadística (correlación) entre series. Si el primer valor común
+    es 0 o negativo, indice_base_100 es None.
     Ejemplo: comparar(["PN00027MM", "PN38784BM"], "2025-01", "2026-08") compara las reservas internacionales netas
     con el precio del cobre. Las fechas van como en serie. Citen los códigos, los periodos y las fuentes.
     """

@@ -1,11 +1,11 @@
-"""Pruebas propias: los helpers de fechas, sin red.
+"""Pruebas propias: los helpers puros sin red y, al final, una con datos reales del BCRP.
 
     uv run pytest -q test_mia.py
 """
 import pytest
 from fastmcp.exceptions import ToolError
 
-from server import _alinear, _comparar, _fecha_api, _misma_frecuencia, _periodo, _resumir, _validar_codigos
+from server import _alinear, _comparar, _fecha_api, _misma_frecuencia, _periodo, _resumir, _validar_codigos, serie
 
 
 @pytest.mark.parametrize("fecha, frecuencia, api", [
@@ -101,3 +101,10 @@ def test_misma_frecuencia():
     _misma_frecuencia({"A": "Mensual", "B": "Mensual"})
     with pytest.raises(ToolError, match=r"B \(Diaria\)"):
         _misma_frecuencia({"A": "Mensual", "B": "Diaria"})
+
+
+def test_serie_anual_pbi_2025():   # con red: la frecuencia anual, que test_server.py no cubre
+    r = serie("PM04923AA", "2025", "2025")
+    assert r["frecuencia"] == "Anual"
+    assert r["datos"] == [{"periodo": "2025", "valor": pytest.approx(3.4306, abs=0.05)}]
+    assert r["fuente"].startswith("https://estadisticas.bcrp.gob.pe")
