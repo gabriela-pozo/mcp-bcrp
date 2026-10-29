@@ -5,7 +5,7 @@
 import pytest
 from fastmcp.exceptions import ToolError
 
-from server import _fecha_api, _periodo
+from server import _fecha_api, _periodo, _resumir
 
 
 @pytest.mark.parametrize("fecha, frecuencia, api", [
@@ -35,3 +35,21 @@ def test_frecuencia_no_soportada():
 ])
 def test_periodo(nombre, frecuencia, periodo):
     assert _periodo(nombre, frecuencia) == periodo
+
+
+def test_resumir():
+    datos = [{"periodo": "2025-01", "valor": 2.0}, {"periodo": "2025-02", "valor": 5.0},
+             {"periodo": "2025-03", "valor": 1.0}, {"periodo": "2025-04", "valor": 3.0}]
+    r = _resumir(datos)
+    assert r["n"] == 4
+    assert r["primero"] == {"periodo": "2025-01", "valor": 2.0}
+    assert r["ultimo"] == {"periodo": "2025-04", "valor": 3.0}
+    assert r["maximo"] == {"periodo": "2025-02", "valor": 5.0}
+    assert r["minimo"] == {"periodo": "2025-03", "valor": 1.0}
+    assert (r["cambio"], r["variacion_pct"], r["promedio"]) == (1.0, 50.0, 2.75)
+
+
+def test_resumir_redondea_y_no_divide_entre_cero():
+    r = _resumir([{"periodo": "2025-01", "valor": 0.0}, {"periodo": "2025-02", "valor": 0.1 + 0.2}])
+    assert r["variacion_pct"] is None
+    assert r["cambio"] == 0.3 and r["ultimo"]["valor"] == 0.3

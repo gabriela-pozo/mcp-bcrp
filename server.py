@@ -141,15 +141,8 @@ def _bajar(url, intentos=4, espera=3):
     raise ToolError(f"La API del BCRP no devolvió datos tras {intentos} intentos: {url}")
 
 
-@mcp.tool(annotations=SOLO_LECTURA)
-def serie(codigo: str, desde: str, hasta: str) -> dict:
-    """Datos oficiales de una serie del BCRP entre dos fechas (inclusive).
-
-    desde y hasta van en el formato de la frecuencia de la serie: "2025-01" (mensual), "2025-T1" (trimestral),
-    "2026-10-15" (diaria) o "2025" (anual). Busquen antes el código con buscar_series.
-    Devuelve el código, el nombre, la frecuencia, los datos como [{periodo, valor}] y la URL de la fuente.
-    Los periodos sin dato ("n.d.", como feriados) se omiten.
-    """
+def _datos_serie(codigo, desde, hasta):
+    """Lo que comparten serie y resumen: ficha, fechas, descarga y periodos normalizados."""
     ficha = _ficha(codigo)
     frecuencia = ficha["frecuencia"]
     url = f"{API}/{codigo}/json/{_fecha_api(desde, frecuencia)}/{_fecha_api(hasta, frecuencia)}"
@@ -159,8 +152,50 @@ def serie(codigo: str, desde: str, hasta: str) -> dict:
         raise ToolError(f"La serie {codigo} no tiene datos entre {desde!r} y {hasta!r}.")
     return {"codigo": codigo, "nombre": ficha["nombre"], "frecuencia": frecuencia, "datos": datos, "fuente": url}
 
-# TODO 2 · resumen(codigo, desde, hasta): primero, ultimo, cambio, variacion_pct, promedio, maximo y minimo
-#   (los tres últimos con su periodo). Úsenla para que el modelo nunca haga cuentas a mano.
+
+@mcp.tool(annotations=SOLO_LECTURA)
+def serie(codigo: str, desde: str, hasta: str) -> dict:
+    """Datos oficiales de una serie del BCRP entre dos fechas (inclusive).
+
+    desde y hasta van en el formato de la frecuencia de la serie: "2025-01" (mensual), "2025-T1" (trimestral),
+    "2026-10-15" (diaria) o "2025" (anual). Busquen antes el código con buscar_series.
+    Devuelve el código, el nombre, la frecuencia, los datos como [{periodo, valor}] y la URL de la fuente.
+    Los periodos sin dato ("n.d.", como feriados) se omiten.
+    """
+    return _datos_serie(codigo, desde, hasta)
+
+
+def _punto(d):
+    return {"periodo": d["periodo"], "valor": round(d["valor"], 4)}
+
+
+def _resumir(datos):
+    """Las cuentas del resumen, sobre [{periodo, valor}] ya ordenado por periodo."""
+    primero, ultimo = datos[0], datos[-1]
+    cambio = ultimo["valor"] - primero["valor"]
+    return {"n": len(datos), "primero": _punto(primero), "ultimo": _punto(ultimo),
+            "maximo": _punto(max(datos, key=lambda d: d["valor"])),
+            "minimo": _punto(min(datos, key=lambda d: d["valor"])),
+            "cambio": round(cambio, 4),
+            "variacion_pct": round(cambio / primero["valor"] * 100, 4) if primero["valor"] else None,
+            "promedio": round(sum(d["valor"] for d in datos) / len(datos), 4)}
+
+
+@mcp.tool(annotations=SOLO_LECTURA)
+def resumen(codigo: str, desde: str, hasta: str) -> dict:
+    """Resume una serie del BCRP entre dos fechas: primero, último, máximo y mínimo (con su periodo), cambio,
+    variación porcentual, promedio y número de datos.
+
+    Úsenla siempre que la pregunta pida variaciones, promedios o extremos: no hagan esas cuentas a mano.
+    Las fechas van como en serie: "2025-01", "2025-T1", "2026-10-15" o "2025".
+    cambio = último - primero, en la unidad de la serie. Para series que ya son porcentajes (inflación, tasas
+    de interés, variaciones del PBI) el dato útil es cambio, en puntos porcentuales; variacion_pct sería un
+    porcentaje de un porcentaje. variacion_pct es None si el primer valor es 0.
+    Citen el código, los periodos y la fuente que devuelve.
+    """
+    s = _datos_serie(codigo, desde, hasta)
+    return {"codigo": s["codigo"], "nombre": s["nombre"], "frecuencia": s["frecuencia"],
+            **_resumir(s["datos"]), "fuente": s["fuente"]}
 
 # TODO 3 · Una herramienta suya, bien descrita. Ideas:
 #   - comparar_paises con la API del Banco Mundial, que tampoco pide clave:
