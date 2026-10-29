@@ -254,11 +254,6 @@ def comparar(codigos: list[str], desde: str, hasta: str) -> dict:
     _misma_frecuencia({c: _ficha(c)["frecuencia"] for c in codigos})
     return _comparar([_datos_serie(c, desde, hasta) for c in codigos])
 
-# TODO 3 · Una herramienta suya, bien descrita. Ideas:
-#   - comparar_paises con la API del Banco Mundial, que tampoco pide clave:
-#     https://api.worldbank.org/v2/country/PER;CHL;COL/indicator/NY.GDP.MKTP.KD.ZG?format=json&date=2015:2025
-#   - correlacion(codigo_a, codigo_b, desde, hasta)
-#   - grafico(codigo, desde, hasta) que guarde un PNG en salidas/ y devuelva la ruta
 
 @mcp.resource("bcrp://serie/{codigo}", mime_type="application/json")
 def ficha_serie(codigo: str) -> str:
