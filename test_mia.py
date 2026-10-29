@@ -8,7 +8,7 @@ import pytest
 from fastmcp.exceptions import ToolError
 
 from server import (_alinear, _comparar, _fecha_api, _misma_frecuencia, _periodo, _resumir, _validar_codigos,
-                    ficha_serie, serie)
+                    ficha_serie, informe, serie)
 
 
 @pytest.mark.parametrize("fecha, frecuencia, api", [
@@ -119,3 +119,10 @@ def test_ficha_serie():   # lee el catálogo local, no la API
     assert f["fuente"].startswith("https://estadisticas.bcrp.gob.pe")
     with pytest.raises(ToolError, match="XX999"):
         ficha_serie("XX999")
+
+
+def test_prompt_informe_pide_citar():
+    texto = informe("inflación en Lima")
+    assert "inflación en Lima" in texto
+    for palabra in ("buscar_series", "resumen", "código", "periodo", "fuente", "no estimes"):
+        assert palabra in texto

@@ -268,7 +268,20 @@ def ficha_serie(codigo: str) -> str:
     return json.dumps({**ficha, "formato_fecha": EJEMPLOS.get(ficha["frecuencia"]), "fuente": URL_CATALOGO},
                       ensure_ascii=False)
 
-# TODO 5 · Un prompt, por ejemplo informe(tema) que pida citar el código y el periodo de cada cifra.
+@mcp.prompt
+def informe(tema: str) -> str:
+    """Pide un informe breve sobre un tema económico del Perú con cifras oficiales del BCRP, cada una citada."""
+    return (f"Escribe un informe breve sobre: {tema}.\n\n"
+            "Reglas:\n"
+            "1. Toda cifra sale de las herramientas del servidor bcrp, nunca de tu memoria. Primero busca los códigos "
+            "con buscar_series.\n"
+            "2. No hagas cuentas a mano: para variaciones, promedios y extremos usa resumen; para ver la evolución de "
+            "varias series en niveles usa comparar; para los datos, serie.\n"
+            "3. En series que ya son porcentajes o tasas (inflación, tasa de referencia, crecimiento del PBI), "
+            "reporta los cambios en puntos porcentuales.\n"
+            "4. Junto a cada cifra cita el código de la serie, el periodo y la fuente (la URL que devuelve la "
+            "herramienta).\n"
+            "5. Si no encuentras una serie o un dato, dilo: no estimes.")
 
 
 if __name__ == "__main__":
