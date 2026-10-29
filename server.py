@@ -10,6 +10,7 @@ import json
 import re
 import time
 import unicodedata
+from datetime import date, timedelta
 from functools import cache
 from pathlib import Path
 
@@ -141,6 +142,10 @@ def _bajar(url, intentos=4, espera=3):
     raise ToolError(f"La API del BCRP no devolvió datos tras {intentos} intentos: {url}")
 
 
+class SinDatos(ToolError):
+    """La consulta funcionó pero el rango no trae datos (distinto de una caída de la API)."""
+
+
 def _datos_serie(codigo, desde, hasta):
     """Lo que comparten serie y resumen: ficha, fechas, descarga y periodos normalizados."""
     ficha = _ficha(codigo)
@@ -149,7 +154,7 @@ def _datos_serie(codigo, desde, hasta):
     datos = [{"periodo": _periodo(p["name"], frecuencia), "valor": float(p["values"][0])}
              for p in _bajar(url)["periods"] if p["values"][0] != "n.d."]
     if not datos:
-        raise ToolError(f"La serie {codigo} no tiene datos entre {desde!r} y {hasta!r}.")
+        raise SinDatos(f"La serie {codigo} no tiene datos entre {desde!r} y {hasta!r}.")
     return {"codigo": codigo, "nombre": ficha["nombre"], "frecuencia": frecuencia, "datos": datos, "fuente": url}
 
 
@@ -253,6 +258,53 @@ def comparar(codigos: list[str], desde: str, hasta: str) -> dict:
     _validar_codigos(codigos)
     _misma_frecuencia({c: _ficha(c)["frecuencia"] for c in codigos})
     return _comparar([_datos_serie(c, desde, hasta) for c in codigos])
+
+
+def _ultimo(datos):
+    """El último {periodo, valor} con valor no nulo de [{periodo, valor}] ordenado por periodo, o None."""
+    return next(({"periodo": d["periodo"], "valor": d["valor"]} for d in reversed(datos) if d["valor"] is not None),
+                None)
+
+
+def _ventana(frecuencia, hoy):
+    """(desde, hasta) que terminan hoy: 45 días, 24 meses, 12 trimestres o 5 años, en el formato de serie."""
+    if frecuencia == "Diaria":
+        return (hoy - timedelta(days=45)).isoformat(), hoy.isoformat()
+    if frecuencia == "Mensual":
+        m = hoy.year * 12 + hoy.month - 1 - 23
+        return f"{m // 12}-{m % 12 + 1:02d}", f"{hoy.year}-{hoy.month:02d}"
+    if frecuencia == "Trimestral":
+        q = hoy.year * 4 + (hoy.month - 1) // 3 - 11
+        return f"{q // 4}-T{q % 4 + 1}", f"{hoy.year}-T{(hoy.month - 1) // 3 + 1}"
+    if frecuencia == "Anual":
+        return str(hoy.year - 4), str(hoy.year)
+    raise ToolError(f"Frecuencia {frecuencia!r} no soportada: solo {', '.join(EJEMPLOS)}.")
+
+
+@mcp.tool(annotations=SOLO_LECTURA)
+def ultimo_dato(codigo: str) -> dict:
+    """El dato más reciente publicado de una serie del BCRP, con su periodo.
+
+    Cuándo usarla: cuando pregunten por el "último dato", el valor "más reciente" o "actual" de una serie
+    (la inflación actual, el tipo de cambio de hoy, la última tasa de referencia).
+    Cuándo no: si piden un periodo concreto ("en marzo de 2025", "entre 2024 y 2025"), usen serie o resumen.
+    Devuelve el código, el nombre, la frecuencia, el periodo y el valor del último dato, la fuente y la fecha
+    de la consulta (consultado). Ejemplo: ultimo_dato("PN01273PM") da la inflación a 12 meses más reciente.
+    Citen el código, el periodo y la fuente.
+    """
+    ficha = _ficha(codigo)
+    hoy = date.today()
+    desde, hasta = _ventana(ficha["frecuencia"], hoy)
+    try:
+        s = _datos_serie(codigo, desde, hasta)
+    except SinDatos:
+        s = {"datos": []}
+    ultimo = _ultimo(s["datos"])
+    if ultimo is None:
+        raise ToolError(f"La serie {codigo} no tiene datos entre {desde!r} y {hasta!r}: puede estar discontinuada "
+                        f"(datos desde {ficha['inicio']}, última actualización del catálogo: {ficha['actualizada']}).")
+    return {"codigo": codigo, "nombre": s["nombre"], "frecuencia": s["frecuencia"], **ultimo,
+            "fuente": s["fuente"], "consultado": hoy.isoformat()}
 
 
 @mcp.resource("bcrp://serie/{codigo}", mime_type="application/json")

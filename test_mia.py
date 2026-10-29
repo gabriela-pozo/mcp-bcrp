@@ -7,8 +7,8 @@ import json
 import pytest
 from fastmcp.exceptions import ToolError
 
-from server import (_alinear, _comparar, _fecha_api, _misma_frecuencia, _periodo, _resumir, _validar_codigos,
-                    ficha_serie, informe, serie)
+from server import (_alinear, _comparar, _fecha_api, _misma_frecuencia, _periodo, _resumir, _ultimo,
+                    _validar_codigos, ficha_serie, informe, serie)
 
 
 @pytest.mark.parametrize("fecha, frecuencia, api", [
@@ -104,6 +104,23 @@ def test_misma_frecuencia():
     _misma_frecuencia({"A": "Mensual", "B": "Mensual"})
     with pytest.raises(ToolError, match=r"B \(Diaria\)"):
         _misma_frecuencia({"A": "Mensual", "B": "Diaria"})
+
+
+def test_ultimo():
+    datos = [{"periodo": "2026-07", "valor": 4.1}, {"periodo": "2026-08", "valor": 4.4},
+             {"periodo": "2026-09", "valor": 4.5}]
+    assert _ultimo(datos) == {"periodo": "2026-09", "valor": 4.5}
+
+
+def test_ultimo_ignora_none():
+    datos = [{"periodo": "2026-10-26", "valor": 3.45}, {"periodo": "2026-10-27", "valor": 0.0},
+             {"periodo": "2026-10-28", "valor": None}]
+    assert _ultimo(datos) == {"periodo": "2026-10-27", "valor": 0.0}   # 0.0 es un dato, None no
+
+
+def test_ultimo_lista_vacia_o_todo_none():
+    assert _ultimo([]) is None
+    assert _ultimo([{"periodo": "2026-09", "valor": None}]) is None
 
 
 def test_serie_anual_pbi_2025():   # con red: la frecuencia anual, que test_server.py no cubre
