@@ -260,7 +260,13 @@ def comparar(codigos: list[str], desde: str, hasta: str) -> dict:
 #   - correlacion(codigo_a, codigo_b, desde, hasta)
 #   - grafico(codigo, desde, hasta) que guarde un PNG en salidas/ y devuelva la ruta
 
-# TODO 4 · Un recurso, por ejemplo la plantilla bcrp://serie/{codigo} con la ficha de la serie.
+@mcp.resource("bcrp://serie/{codigo}", mime_type="application/json")
+def ficha_serie(codigo: str) -> str:
+    """Ficha de una serie del BCRP: nombre, categoría, frecuencia, desde cuándo hay datos, última actualización
+    y el formato de fecha que piden serie, resumen y comparar. Sale del catálogo oficial, sin consultar datos."""
+    ficha = _ficha(codigo)
+    return json.dumps({**ficha, "formato_fecha": EJEMPLOS.get(ficha["frecuencia"]), "fuente": URL_CATALOGO},
+                      ensure_ascii=False)
 
 # TODO 5 · Un prompt, por ejemplo informe(tema) que pida citar el código y el periodo de cada cifra.
 
